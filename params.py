@@ -78,7 +78,7 @@ TonyLi_PhI = dict(cosmo_model = 'Planck15',
                   Omega_field = 4*u.deg**2,
                   do_Jysr = False,
                   Nfield = 4,
-                  catalogue_file = '/home/dongwooc/scratchspace/pprun_hiz_npz/COMAP_z5.8-7.9_960Mpc_seed_13819.npz',
+                  catalogue_file = 'prun_hiz_npz/COMAP_z5.8-7.9_960Mpc_seed_13819.n/home/dongwooc/scratchspace/ppz',
                   )
 
 TonyLi_PhII = dict(cosmo_model = 'Planck15',
@@ -105,7 +105,7 @@ TonyLi_PhII = dict(cosmo_model = 'Planck15',
                   Omega_field = 538*u.deg**2,
                   do_Jysr = False,
                   Nfield = 4,
-                  catalogue_file = '/mnt/scratch-lustre/horlaville/nate_sims/may_5/ngaussian/ngaussian_lc_mlambda10.npz',
+                  catalogue_file = 'nate_sims/gaussian/may_runs/gauss_lightcone.npz',
                   )
 
 
@@ -227,7 +227,7 @@ Lichen_v4 = dict(model_type = 'ML',
                          Omega_field = 16*u.deg**2,
                          do_Jysr = True,
                          Nfield = 4,
-                         catalogue_file = '/mnt/scratch-lustre/horlaville/nate_sims/may_5/gaussian/gaussian_lc_M_gt_1.129e+11Msol.npz'
+                         catalogue_file = 'nate_sims/gaussian/may_runs/gauss_lightcone.npz'
                          )
 
 

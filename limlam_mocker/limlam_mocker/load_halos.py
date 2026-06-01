@@ -4,8 +4,37 @@ import scipy
 from .tools import * # . tools? 
 from . import debug
 import time
+import h5py
+from limlam_mocker.limlam_mocker import empty_table
 
-#@timeme
+# [TREY]: New filetype support for .h5py filetype
+def load_lightcone_catalogue(filein, cosmo):
+    halos = empty_table()
+    halo_info = filein
+
+    halos.M = np.array(halo_info['m'])
+
+    halos.x_pos = np.array(halo_info['x'])/cosmo.h
+    halos.y_pos = np.array(halo_info['y'])/cosmo.h
+    halos.z_pos = np.array(halo_info['z'])/cosmo.h
+
+    halos.chi = np.sqrt(halos.x_pos**2+halos.y_pos**2+halos.z_pos**2)
+
+    halos.redshift = np.array(halo_info['zcos'])
+    halos.redshifto = np.array(halo_info['zlos'])
+
+    halos.nhalo = len(halos.M)
+
+    halos.ra = np.array(halo_info['ra'])
+    halos.dec = np.array(halo_info['dec'])
+
+    halos.sm = np.array(halo_info['sm'])
+    halos.sfr = np.array(halo_info['sfr'])
+    halos.a_uv = np.array(halo_info['a_uv'])
+
+    return halos
+
+
 def load_peakpatch_catalogue(halo_info, filetype='.npz', saveHalos=False, saveFolder='/outputs/'):
     """
     Load peak patch halo catalogue into halos class and cosmology into cosmo class
@@ -34,132 +63,9 @@ def load_peakpatch_catalogue(halo_info, filetype='.npz', saveHalos=False, saveFo
     halos       = empty_table()                      # creates empty class to put any halo info into 
     
     if filetype=='.h5':
-        # Martine's catalogues use these
-        from astropy.cosmology import Planck15 as cosmo15
-        h = cosmo15.H(0).value/100
-        
-        cen_x_fov = 0.  # set zero for now
-        cen_y_fov = 0.
-        
-        if saveHalos:
-            print('Saving mass values...')
-            mcen       = halo_info['mass_cen'].value
-            rm_cenmass = (mcen > 2e13/h)
-            mcen = mcen[rm_cenmass]            
-            xcen = (halo_info['xpos_cen'].value)[rm_cenmass]
-            ycen = (halo_info['ypos_cen'].value)[rm_cenmass]
-            zcen = (halo_info['zpos_cen'].value)[rm_cenmass]
-            
-            with open(Mcen_file, 'w+') as mc:
-                np.savetxt(mc, mcen)
-            with open(cen_pos_file, 'w+') as cp:
-                np.savetxt(cp, (xcen,ycen,zcen))
-            
-            print('Saving position values...')
-            msat       = halo_info['mass_sat'].value
-            rm_satmass = (msat > 2e13/h)
-            msat = msat[rm_satmass]
-            xsat = (halo_info['xpos_sat'].value)[rm_satmass]
-            ysat = (halo_info['ypos_sat'].value)[rm_satmass]
-            zsat = (halo_info['zpos_sat'].value)[rm_satmass]
-            
-            with open(Msat_file, 'w+') as ms:
-                np.savetxt(ms, msat)
-            with open(sat_pos_file, 'w+') as sp:
-                np.savetxt(sp, (xsat,ysat,zsat))
-            
-        else:
-            try:
-                print('Loading mass files... (takes 3 minutes)') 
-                mcen = np.loadtxt(Mcen_file)
-                msat = np.loadtxt(Msat_file)
-                print('Loading position files...')
-                xcen, ycen, zcen = np.loadtxt(cen_pos_file)[0], np.loadtxt(cen_pos_file)[1], np.loadtxt(cen_pos_file)[2]
-                xsat, ysat, zsat = np.loadtxt(sat_pos_file)[0], np.loadtxt(sat_pos_file)[1], np.loadtxt(sat_pos_file)[2]
-            except IOError:
-                print('Need to set saveHalo=True the first run in order to use saveHalo=False subsequently.')
-        
-        halos.Mcen = mcen
-        halos.x_pos_cen = xcen
-        halos.y_pos_cen = ycen
-        halos.z_pos_cen = zcen
-        
-        halos.Msat = msat
-        halos.x_pos_sat = xsat
-        halos.y_pos_sat = ysat
-        halos.z_pos_sat = zsat
-        
-        # both centrals and satellites together --- from here, it doesn't take too long
-        halos.M     = np.append(mcen, msat)
-        halos.x_pos = np.append(xcen, xsat)
-        halos.y_pos = np.append(ycen, ysat)
-        halos.z_pos = np.append(zcen, zsat)
-        
-        halos.chi_cen = np.sqrt(halos.x_pos_cen**2+halos.y_pos_cen**2+halos.z_pos_cen**2)
-        halos.chi_sat = np.sqrt(halos.x_pos_sat**2+halos.y_pos_sat**2+halos.z_pos_sat**2)
-        halos.chi     = np.append(halos.chi_cen, halos.chi_sat)  
-        
-        # manually calculate redshift - taken straight from tools.py chi_to_redshift(chi, cosmo)
-        zinterp    = np.linspace(0,10,20000)
-        dz         = zinterp[1]-zinterp[0]
-        chiinterp  = np.cumsum(drdz(zinterp,cosmo15.h,cosmo15.Om0) * dz)
-        chiinterp -= chiinterp[0]
-        z_of_chi   = scipy.interpolate.interp1d(chiinterp,zinterp)
-        
-        halos.redshift_cen = z_of_chi(halos.chi_cen)
-        halos.redshift_sat = z_of_chi(halos.chi_sat)
-        halos.redshift     = z_of_chi(halos.chi)
-        
-        halos.nhalo_cen = len(halos.Mcen)
-        halos.nhalo_sat = len(halos.Msat)
-        halos.nhalo     = len(halos.M)
-        
-        halos.ra_cen    = np.arctan2(-halos.x_pos_cen,halos.z_pos_cen)*180./np.pi - cen_x_fov
-        halos.ra_sat    = np.arctan2(-halos.x_pos_sat,halos.z_pos_sat)*180./np.pi - cen_x_fov
-        halos.ra        = np.arctan2(-halos.x_pos,halos.z_pos)*180./np.pi - cen_x_fov
-        
-        halos.dec_cen   = np.arcsin(  halos.y_pos_cen/halos.chi_cen  )*180./np.pi - cen_y_fov
-        halos.dec_sat   = np.arcsin(  halos.y_pos_sat/halos.chi_sat  )*180./np.pi - cen_y_fov
-        halos.dec       = np.arcsin(  halos.y_pos/halos.chi  )*180./np.pi - cen_y_fov
-        
-        
-        # Using 'ns' and 'sigma8' the same as George's 'cosmo_header'
-        params_dict = {'h': h, 'sigma8': 0.82, 'Omega_M': cosmo15.Om0, 'Omega_L': cosmo15.Ode0, 'Omega_B': cosmo15.Ob0, 'ns': 0.96}
-        
-        # George's 'cosmo_header', in case I need to manually set these values later:
-        # params_dict = {'h': 0.7, 'sigma8': 0.82, 'Omega_M': 0.286, 'Omega_L': 0.714, 'Omega_B': 0.047, 'ns': 0.96}
-
-        
-    else:
-        print('Loading .npz catalogues...')
-        params_dict = halo_info['cosmo_header'][()]     
-        if debug.verbose: print("\thalo catalogue contains:\n\t\t", halo_info.files)    #.npz version
-            
-        cen_x_fov  = params_dict.get('cen_x_fov', 0.) #if the halo catalogue is not centered along the z axis
-        cen_y_fov  = params_dict.get('cen_y_fov', 0.) #if the halo catalogue is not centered along the z axis
-        
-        halos.M          = halo_info['M']     # halo mass in Msun 
-        halos.x_pos      = halo_info['x']     # halo x position in comoving Mpc 
-        halos.y_pos      = halo_info['y']     # halo y position in comoving Mpc 
-        halos.z_pos      = halo_info['z']     # halo z position in comoving Mpc 
-        
-        halos.vx         = halo_info['vx']    # halo x velocity in km/s
-        halos.vy         = halo_info['vy']    # halo y velocity in km/s
-        halos.vz         = halo_info['vz']    # halo z velocity in km/s
-        halos.redshift   = halo_info['zhalo'] # observed redshift incl velocities
-        halos.zformation = halo_info['zform'] # formation redshift of halo
-        halos.chi        = np.sqrt(halos.x_pos**2+halos.y_pos**2+halos.z_pos**2)  
-        halos.nhalo      = len(halos.M)
-        halos.ra         = np.arctan2(-halos.x_pos,halos.z_pos)*180./np.pi - cen_x_fov
-        halos.dec        = np.arcsin(  halos.y_pos/halos.chi  )*180./np.pi - cen_y_fov
-
-    assert np.max(halos.M) < 1.e17,             "Halos seem too massive"
-    # assert np.max(halos.redshift) < 4.,         "need to change max redshift interpolation in tools.py" 
-    assert np.max(halos.redshift) < 10,        "need to change max redshift interpolation in tools.py" # changed for George's z=4.77-6.21 sim data because of error in calling m.maps (May 17) - Clara
-    if debug.verbose: print('\n\t%d halos loaded' % halos.nhalo)
-    
-    return halos
-    
+        #[TREY]: Edited functionality of load_peakpatch_catalogue to support .h5py filetype instead of .h5
+        from astropy.cosmology import Planck13 as cosmo
+        return load_lightcone_catalogue(halo_info, cosmo)
 
 
 def load_peakpatch_catalogue_cosmo(halo_info):

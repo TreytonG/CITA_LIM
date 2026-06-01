@@ -3,7 +3,7 @@ Miscellaneous utilities for LIM code
 '''
 import numpy as np
 from astropy.units.quantity import Quantity
-from astropy.cosmology.core import FlatLambdaCDM
+from astropy.cosmology import FlatLambdaCDM
 from scipy.interpolate import interp1d
 import inspect
 import astropy.units as u
@@ -43,7 +43,7 @@ def get_default_params(func):
     "self" argument it is removed from the dictionary.
     '''
     
-    args = inspect.getargspec(func)
+    args = inspect.getfullargspec(func)
     
     param_names = args.args
     if 'self' in param_names:
