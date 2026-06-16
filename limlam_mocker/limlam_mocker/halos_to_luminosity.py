@@ -61,8 +61,7 @@ def Mhalo_to_Lline(halos, model_type, model_name, model_par, sigma_scatter=0.,
              
         if model_name=='TonyLi':
             if model_par['sig_SFR']>0.:
-            	L = add_log_normal_scatter(L1,model_par['sig_SFR'],
-            	     pwr=1./model_par['alpha'],seed=scatter_seed)
+                L = add_log_normal_scatter(L1,model_par['sig_SFR'], pwr=1./model_par['alpha'],seed=scatter_seed)
             else:
                 L = L1
         else:
