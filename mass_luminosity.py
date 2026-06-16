@@ -449,6 +449,259 @@ def LichenCII_v3(Mvec, MLpar, z):
     
     return L_CII
 
+# Dependency function of the bursty implementation of LichenCII_v3
+def sigma_logL_with_epsilon(M_h, epsilon, epsilon0=0.015, 
+    z=6.0, sigma_low=0.19963, A=1.1, M_pivot=8.5803e9, 
+    alpha=0.7505, p=2.0):
+    
+     mass_term = np.exp(-(M_h / M_pivot)**alpha)
+     eps_term = (epsilon / epsilon0)**p / (1 + (epsilon / epsilon0)**p)
+
+     return sigma_low + A * eps_term * mass_term
+
+# This model adds burstiness into LichenCII_v3
+def LichenCII_v3_bursty(Mvec, MLpar, z):
+    """
+    Bursty extension of LichenCII_v3.
+
+    This version preserves the original LichenCII_v3 pipeline:
+
+        SFR -> stellar mass -> metallicity -> HI mass -> L_CII
+
+    The only modification is the addition of mass-dependent,
+    epsilon-controlled lognormal scatter to the SFR.
+
+    The scatter is mean-preserving in linear space and increases
+    toward lower halo masses, mimicking burstier star formation
+    in shallow gravitational potentials.
+    """
+
+    # ----------------------------------------------------------
+    # Model parameters
+    # ----------------------------------------------------------
+
+    M0 = MLpar['M0'] * u.Msun
+    Mmin = MLpar['Mmin'] * u.Msun
+
+    alpha_MH1 = MLpar['alpha_MH1']
+    alpha_LCII = MLpar['alpha_LCII']
+
+    zdex = MLpar['zdex']
+
+    alpha_0 = MLpar['alpha0']
+    gamma_0 = MLpar['gamma0']
+
+    # New burstiness parameter
+    epsilon = MLpar['epsilon']
+
+    # ----------------------------------------------------------
+    # Load Behroozi SFR(M,z)
+    # ----------------------------------------------------------
+
+    BehrooziFile = MLpar['BehrooziFile']
+
+    x = np.loadtxt(BehrooziFile)
+
+    zb = np.unique(x[:,0]) - 1.
+    logMb = np.unique(x[:,1])
+
+    logSFRb = x[:,2].reshape(137,122,order='F')
+
+    logSFR_interp = interp2d(
+        logMb,
+        zb,
+        logSFRb,
+        bounds_error=False,
+        fill_value=0.
+    )
+
+    # ----------------------------------------------------------
+    # Compute mean SFR
+    # ----------------------------------------------------------
+
+    logM = np.log10(Mvec.to(u.Msun).value)
+
+    if np.array(z).size > 1:
+
+        SFR = np.zeros(logM.size)
+
+        for ii in range(logM.size):
+            SFR[ii] = 10.**logSFR_interp(logM[ii], z[ii])
+
+    else:
+
+        SFR = 10.**logSFR_interp(logM, z)
+
+    # ----------------------------------------------------------
+    # Behroozi+2013 stellar mass relation
+    # ----------------------------------------------------------
+
+    a = lambda z: 1/(1.+z)
+
+    nu = lambda z: np.exp(-4*a(z)**2)
+
+    log10_eps = lambda z: (
+        -1.777
+        -0.006*(a(z)-1)*nu(z)
+        -0.119*(a(z)-1)
+    )
+
+    log10_M1 = lambda z: (
+        11.514
+        + (-1.793*(a(z)-1)-0.251*z)*nu(z)
+    )
+
+    alpha = lambda z: (
+        alpha_0
+        + 0.731*(a(z)-1)*nu(z)
+    )
+
+    delta = lambda z: (
+        3.508
+        + (2.608*(a(z)-1)-0.043*z)*nu(z)
+    )
+
+    gamma = lambda z: (
+        0.316
+        + (1.319*(a(z)-1)+0.279*z)
+        * nu(z)
+    )
+
+    f = lambda x,z: (
+        -np.log10(10**(alpha(z)*x)+1)
+        + delta(z)
+        * (np.log10(1+np.exp(x)))**gamma(z)
+        / (1+np.exp(10**(-x)))
+    )
+
+    xi = lambda z: 0.218 - 0.023*(a(z)-1)
+
+    def stellar_m(halo_m, z, scatter=False):
+
+        sm = 10**(
+            log10_eps(z)
+            + log10_M1(z)
+            + f(
+                np.log10(
+                    (halo_m/(10**log10_M1(z))).value
+                ),
+                z
+            )
+            - f(0,z)
+        )
+
+        if scatter:
+
+            rand = np.random.lognormal(
+                -0.5*(xi(z)*np.log(10))**2,
+                xi(z)*np.log(10)
+            )
+
+            return sm * rand
+
+        else:
+
+            return sm
+
+    stellar_mass = stellar_m(Mvec, z)
+
+    # ----------------------------------------------------------
+    # Fundamental Metallicity Relation
+    # ----------------------------------------------------------
+
+    gamma = gamma_0
+
+    beta = 2.1
+    m_0 = 10.11
+    m_1 = 0.56
+
+    Z_0 = 8.779
+
+    def M_0(sfr):
+        return (10**m_0) * (sfr**m_1)
+
+    halo_M0 = M_0(SFR)
+
+    def ps_metal(stellar_m, M_0):
+
+        return (
+            Z_0
+            - (gamma/beta)
+            * np.log10(
+                1 + (stellar_m/M_0)**(-beta)
+            )
+        )
+
+    def metal(ps_m):
+        return 10**(ps_m - 8.779)
+
+    halo_psZ = ps_metal(
+        stellar_mass,
+        halo_M0
+    )
+
+    halo_Z = metal(halo_psZ)
+
+    # Original metallicity scatter
+
+    Z_scatter = add_log_normal_scatter(
+        halo_Z,
+        zdex,
+        seed=23
+    )
+
+    # ----------------------------------------------------------
+    # HI mass model
+    # ----------------------------------------------------------
+
+    def MH1_fit(M, M_0, M_min, alphaMH1):
+
+        x = M / M_min
+
+        return (
+            M_0
+            * x**alphaMH1
+            * np.exp(-1/(x**0.35))
+        )
+
+    MH1 = MH1_fit(
+        Mvec,
+        M0,
+        Mmin,
+        alpha_MH1
+    )
+
+    # ------------------------------------------------------------
+    # Mean CII luminosity
+    # ------------------------------------------------------------
+    L_CII_mean = (alpha_LCII * MH1.value * Z_scatter) * u.Lsun
+
+
+    # ------------------------------------------------------------
+    # NEW: mass-dependent luminosity scatter (burstiness proxy)
+    # ------------------------------------------------------------
+    # epsilon controls strength of burstiness
+    sigma_dex = sigma_logL_with_epsilon(
+        Mvec.to(u.Msun).value,
+        epsilon=epsilon
+    )
+
+    # convert dex -> natural log scatter
+    sigma_ln = sigma_dex * np.log(10.)
+
+    # log-normal scatter (mass-dependent per halo)
+    scatter = np.exp(
+        np.random.normal(
+            loc=-0.5 * sigma_ln**2,
+            scale=sigma_ln,
+            size=Mvec.shape
+        )
+    )
+
+    # apply scatter directly to luminosity
+    L_CII = L_CII_mean * scatter
+
+    return L_CII
 
 
 def SilvaCO(Mvec, MLpar, z):

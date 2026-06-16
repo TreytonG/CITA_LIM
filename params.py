@@ -230,7 +230,25 @@ Lichen_v4 = dict(model_type = 'ML',
                          catalogue_file = 'nate_sims/gaussian/may_runs/gauss_lightcone.npz'
                          )
 
-
+# This is a copied version of Lichen_v4 using the new (also copied) LichenCII_v3_bursty model
+Lichen_v4_bursty = dict(model_type = 'ML',
+                         model_name = 'LichenCII_v3_bursty',
+                         model_par = {'zdex': 0.05, 'M0':(1.9*(10**9)),'Mmin':(2*(10**10)), 'M_pivot':(1e12), 'alpha_MH1':0.74, 'alpha_LCII':0.017, 'alpha0':-1.412, 'gamma0':0.31, 'epsilon': 0.005, 'BehrooziFile': 'sfr_reinterp.dat'},
+                         nu = 1897*u.GHz,
+                         nuObs = 400*u.GHz,
+                         Mmin = 1e9*u.Msun,
+                         Mmax = 1e14*u.Msun,
+                         Tsys_NEFD = 72.5*u.mJy*u.s**(1./2),
+                         Nfeeds = 120,
+                         beam_FWHM = 48*u.arcsec,
+                         Delta_nu = 40*u.GHz, 
+                         dnu = 1.11*u.GHz,
+                         tobs = 2000*u.hr,
+                         Omega_field = 16*u.deg**2,
+                         do_Jysr = True,
+                         Nfield = 4,
+                         catalogue_file = 'nate_sims/gaussian/may_runs/gauss_lightcone.npz'
+                         )
 
 
 Silva_m3_z6_CCATp = dict(model_type = 'ML',

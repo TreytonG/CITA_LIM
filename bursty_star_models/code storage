@@ -1,0 +1,71 @@
+'''
+Something copilot gave me for the figure: 
+plt.figure(figsize=(7, 5))
+plt.plot(bin_centers, measured_scatter, 'o', label='measured (simulation)')
+plt.plot(M_h, sigma_dex, '-', label='model input')
+plt.xlabel('Mh / Msun')
+plt.ylabel('sigma_logL [dex]')
+plt.legend()
+plt.title('Bursty scatter vs halo mass (reproduction of Fig. 3)')
+plt.grid(True)
+plt.show()
+Unsure if this is correct or what we want
+'''
+
+'''
+# Convert all arrays in a .npz archive into one or more CSV files.
+
+npz_path = r'C:\Users\txgs2\OneDrive\Desktop\Research\LIM Research\CITA_LIM\bursty_star_models\epsilon_0p045.npz'
+out_dir = os.path.dirname(npz_path)
+base_name = os.path.splitext(os.path.basename(npz_path))[0]
+
+if not os.path.exists(npz_path):
+    raise FileNotFoundError(npz_path)
+
+saved_files = []
+with np.load(npz_path, allow_pickle=True) as data:
+    keys = data.files
+    if not keys:
+        raise ValueError("No arrays found in the npz archive.")
+
+    one_dfs = []
+    for key in keys:
+        arr = np.asarray(data[key])
+        safe_key = "".join(c if c.isalnum() else "_" for c in key) or "array"
+        out_csv = os.path.join(out_dir, f"{base_name}_{safe_key}.csv")
+
+        # Build a DataFrame robustly for scalars, 1D, 2D, or structured arrays
+        if arr.ndim == 0:
+            df = pd.DataFrame({safe_key: [arr.item()]})
+        elif arr.dtype.names is not None:  # structured array
+            df = pd.DataFrame(arr.tolist())
+        elif arr.ndim == 1:
+            df = pd.DataFrame(arr, columns=[safe_key])
+        elif arr.ndim == 2:
+            df = pd.DataFrame(arr)
+        else:
+            # flatten all trailing dims into columns, keep first axis as rows
+            reshaped = arr.reshape(arr.shape[0], -1)
+            col_names = [f"{safe_key}_{i}" for i in range(reshaped.shape[1])]
+            df = pd.DataFrame(reshaped, columns=col_names)
+
+        df.to_csv(out_csv, index=False)
+        saved_files.append(out_csv)
+
+        # keep 1D arrays for optional combined CSV
+        if arr.ndim == 1:
+            one_dfs.append(df.rename(columns={df.columns[0]: safe_key}))
+
+    # If multiple 1D arrays share the same length, write a combined CSV
+    if len(one_dfs) > 1:
+        lengths = {len(d) for d in one_dfs}
+        if len(lengths) == 1:
+            combined = pd.concat(one_dfs, axis=1)
+            combined_csv = os.path.join(out_dir, f"{base_name}_combined.csv")
+            combined.to_csv(combined_csv, index=False)
+            saved_files.append(combined_csv)
+
+print("Saved CSV files:")
+for p in saved_files:
+    print("  -", p)
+'''
