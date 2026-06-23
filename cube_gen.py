@@ -1,5 +1,5 @@
 '''
-                                                              CubeGen Script
+                                                                 CubeGen
              This script will generate intensity cubes of an input catalog of lightcones, using CITA_LIM tool and dependencies
                             Generated figures will be stored in the output directory specified by the user
 This script closesly mirrors the llm_readme file created by Patrick Horlaville, modified to support catalogs rather than single lightcones
@@ -13,10 +13,7 @@ os.chdir("/home/treyton/CITA_LIM")
 
 import warnings
 
-warnings.filterwarnings(
-    "ignore",
-    module="hmf.*"
-)
+warnings.filterwarnings("ignore", module="hmf.*")
 
 
 # Importing Neccesary Libraries #
@@ -50,10 +47,9 @@ matplotlib.rcParams.update({'font.size': 18, 'figure.figsize': [8, 7]})
 # Reads off user inputted lightcone paths in a text file, and assembles the full filepaths to be used
 # The text file should have one filename per line, and will be appended to the base path "/mnt/AccessArk/lightcone_factory/"
 import os
-def get_filepaths(textfile="/home/treyton/CITA_LIM/cube_gen_test_lightcone_catalog", base_path="/mnt/AccessArk/lightcone_factory/", verbose=True):
+def get_filepaths(textfile="/home/treyton/CITA_LIM/cube_gen_lightcone_catalog", base_path="/mnt/AccessArk/lightcone_factory/", verbose=True):
     filepaths = []
     invalid_paths = []
-
     with open(textfile, 'r') as f:
         for line in f:
             p = line.strip()
@@ -71,10 +67,8 @@ def get_filepaths(textfile="/home/treyton/CITA_LIM/cube_gen_test_lightcone_catal
         print(f"Warning: {len(invalid_paths)} invalid/unreadable files found.")
         for p in invalid_paths[:10]:  # show first few only
             print("  Missing/unreadable:", p)
-
     return filepaths
 filepaths = get_filepaths()
-
 
 
 # Importing Neccesary Libraries #
@@ -101,17 +95,16 @@ from datetime import datetime
 matplotlib.rcParams.update({'font.size': 18, 'figure.figsize': [8, 7]})
 
 
+# Get the date and time to timestamp the output files with
+now_et = datetime.now(ZoneInfo("America/New_York"))
+date = now_et.strftime("%m-%d-%Y")
+time = now_et.strftime("%I:%M:%S %p")
+
 
 # Initialize our LineModel #
 # We will use the model "Lichen_v4" created by Patrick Horlaville
 m = lim()
 m_cii = lim('Lichen_v4_bursty', doSim = True)
-
-
-# Get the date and time to timestamp the output files with
-now_et = datetime.now(ZoneInfo("America/New_York"))
-date = now_et.strftime("%m/%d/%Y")
-time = now_et.strftime("%I:%M:%S %p")
 
 
 # Creating the data storage
@@ -167,12 +160,10 @@ for i in range(len(filepaths)):
                 catalogue_file = current_file)
     print("Setting epsilon to 0.005...")
 
-
     # Loading in the Intesities #
     print("compiling...")
     cii_cube_0005 = m_cii.maps
     print("compiled!")
-
 
     # Setting up the Parameters of m_cii_0015 #
     m_cii.update(model_par = {'zdex': 0.4,
@@ -248,7 +239,6 @@ for i in range(len(filepaths)):
                  0.015: cii_cube_0015,
                  0.045: cii_cube_0045,
                  0.100: cii_cube_01,}
-    # Create an iterable array of the variables
 
     # Figure Generation #
     # [CII] Noiseless Mock
@@ -265,7 +255,7 @@ for i in range(len(filepaths)):
         
         # Save the figure
         save_dir = folder_registry[eps]["map"]
-        filename = f"Figure_{count:03d}.png"
+        filename = f"Map_{count:03d}_eps{eps}.png"
         save_path = save_dir / filename
         fig.savefig(save_path, dpi=300)
         print(f"Saved {filename} into {save_path}")
@@ -285,7 +275,7 @@ for i in range(len(filepaths)):
 
         # Save the figure
         save_dir = folder_registry[eps]["beamed_map"]
-        filename = f"Figure_{count:03d}.png"
+        filename = f"Beamed_{count:03d}_eps{eps}.png"
         save_path = save_dir / filename
         fig.savefig(save_path, dpi=300)
         print(f"Saved {filename} into {save_path}")
@@ -294,10 +284,10 @@ for i in range(len(filepaths)):
     # Raw Data Storage
     for eps, current_map in eps_cubes.items():
         save_dir = folder_registry[eps]["raw_data"]
-        filename = f"Map_{count:03d}.h5"
+        filename = f"RawData_{count:03d}_eps{eps}.h5"
         save_path = save_dir / filename
         with h5py.File(save_path, "w") as f:
             f["intensity"] = current_map
         print(f"Saved {filename} into {save_path}")
-
+    print(f"Finished with lightcone {count:03d}")
     count += 1
