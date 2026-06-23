@@ -233,7 +233,7 @@ Lichen_v4 = dict(model_type = 'ML',
 # This is a copied version of Lichen_v4 using the new (also copied) LichenCII_v3_bursty model
 Lichen_v4_bursty = dict(model_type = 'ML',
                          model_name = 'LichenCII_v3_bursty',
-                         model_par = {'zdex': 0.05, 'M0':(1.9*(10**9)),'Mmin':(2*(10**10)), 'M_pivot':(1e12), 'alpha_MH1':0.74, 'alpha_LCII':0.017, 'alpha0':-1.412, 'gamma0':0.31, 'epsilon': 0.005, 'BehrooziFile': 'sfr_reinterp.dat'},
+                         model_par = {'zdex': 0.05, 'M0':(1.9*(10**9)),'Mmin':(1*(10**10)), 'M_pivot':(3.1e10), 'alpha_MH1':0.74, 'alpha_LCII':0.017, 'alpha0':-1.412, 'gamma0':0.31, 'epsilon': 0.005, 'BehrooziFile': 'sfr_reinterp.dat'},
                          nu = 1897*u.GHz,
                          nuObs = 400*u.GHz,
                          Mmin = 1e9*u.Msun,

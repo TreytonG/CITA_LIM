@@ -18,6 +18,34 @@ warnings.filterwarnings(
     module="hmf.*"
 )
 
+
+# Importing Neccesary Libraries #
+# Base imports
+import numpy as np
+import matplotlib
+import matplotlib.pyplot as plt
+
+# Math packages
+import math
+from scipy import special
+from scipy import interpolate
+import astropy.units as u
+from scipy.ndimage import gaussian_filter
+
+# base intensity mapping package
+from lim import lim
+from limlam_mocker.limlam_mocker import empty_table
+
+# other miscellaneous packages
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from pathlib import Path
+import h5py
+
+# Defualt plotting settings
+matplotlib.rcParams.update({'font.size': 18, 'figure.figsize': [8, 7]})
+
+
 # Assembling the Lightcone Filepaths #
 # Reads off user inputted lightcone paths in a text file, and assembles the full filepaths to be used
 # The text file should have one filename per line, and will be appended to the base path "/mnt/AccessArk/lightcone_factory/"
@@ -77,61 +105,199 @@ matplotlib.rcParams.update({'font.size': 18, 'figure.figsize': [8, 7]})
 # Initialize our LineModel #
 # We will use the model "Lichen_v4" created by Patrick Horlaville
 m = lim()
-m_cii = lim('Lichen_v4', doSim = True)
+m_cii = lim('Lichen_v4_bursty', doSim = True)
 
+
+# Get the date and time to timestamp the output files with
+now_et = datetime.now(ZoneInfo("America/New_York"))
+date = now_et.strftime("%m/%d/%Y")
+time = now_et.strftime("%I:%M:%S %p")
+
+
+# Creating the data storage
+eps_values = [0.005, 0.015, 0.045, 0.100]
+root = Path("CubeGen Output; " + date + ", " + time)
+folder_registry = {}
+for eps in eps_values:
+    eps_str = f"{eps:.3f}".rstrip("0").rstrip(".")
+    base = root / f"eps={eps_str}"
+    folder_registry[eps] = {"base": base,
+                            "map": base / f"{eps_str}_map", 
+                            "beamed_map": base / f"{eps_str}_beamed_map",  
+                            "raw_data": base / f"{eps_str}_raw_data" 
+                            # "power_spectra": base / f"{eps_str}_power_spectra",   
+                            # # "pdf": base / f"{eps_str}_pdf",
+                            }
+# other_base = root / "Other Figures"
+# folder_registry["other"] = {"base": other_base, 
+                            # "four_panel_maps": other_base / "4_panel_maps", 
+                            # "four_panel_beamed_maps": other_base / "4_panel_beamed_maps",   
+                            # "summary_statistics": other_base / "summary_statistics"}
+for eps_dict in folder_registry.values():
+    for path in eps_dict.values():
+        path.mkdir(parents=True, exist_ok=True)
 
 
 # Processing the Lightcones #
 # The for loop iterates through each lightcone file path, processing and creating figures for each one
+count = 0
 for i in range(len(filepaths)):
     current_file = filepaths[i]
     print(f"Processing file {i+1}/{len(filepaths)}: {current_file}")
 
 
-    # Setting up the Parameters of m_cii #
+    # Setting up the Parameters of m_cii_0005 #
     # More information on what the parameters do can be found in llm_readme 
     m_cii.update(model_par = {'zdex': 0.4,
-        'M0': 1900000000.0,
-        'Mmin': 20000000000,
-        'alpha_MH1': 0.74,
-        'alpha_LCII': 0.024,
-        'alpha0': -1.412,
-        'gamma0': 0.31,
-        'BehrooziFile': 'sfr_reinterp.dat'},
-            dnu = 2.8*u.GHz,
-            nuObs = 270*u.GHz,
-            Delta_nu = 40*u.GHz,
-            tobs = 40000*u.h,
-            Omega_field = 2.25*u.deg**2,
-            beam_FWHM = 48*u.arcsec,
-            catalogue_file = current_file)
-    print("updated!")
-    
+    'M0': 1900000000.0,
+    'Mmin': 20000000000,
+    'M_pivot':1e12,
+    'alpha_MH1': 0.74,
+    'alpha_LCII': 0.024,
+    'alpha0': -1.412,
+    'gamma0': 0.31,
+    'epsilon': 0.005,
+    'BehrooziFile': 'sfr_reinterp.dat'},
+                dnu = 2.8*u.GHz,
+                nuObs = 270*u.GHz,
+                Delta_nu = 40*u.GHz,
+                tobs = 40000*u.h,
+                Omega_field = 2.25*u.deg**2,
+                beam_FWHM = 48*u.arcsec,
+                catalogue_file = current_file)
+    print("Setting epsilon to 0.005...")
 
 
     # Loading in the Intesities #
-    # The following line is the bulk of the compute time, as it loads in all of the data from the lightcone
-    cii_cube = m_cii.maps
-    print("compiled")
+    print("compiling...")
+    cii_cube_0005 = m_cii.maps
+    print("compiled!")
 
-     # Figure Generation #
-    # TODO: Think about which figures would be good to have and store
+
+    # Setting up the Parameters of m_cii_0015 #
+    m_cii.update(model_par = {'zdex': 0.4,
+    'M0': 1900000000.0,
+    'Mmin': 20000000000,
+    'M_pivot':1e12,
+    'alpha_MH1': 0.74,
+    'alpha_LCII': 0.024,
+    'alpha0': -1.412,
+    'gamma0': 0.31,
+    'epsilon': 0.015,
+    'BehrooziFile': 'sfr_reinterp.dat'},
+                dnu = 2.8*u.GHz,
+                nuObs = 270*u.GHz,
+                Delta_nu = 40*u.GHz,
+                tobs = 40000*u.h,
+                Omega_field = 2.25*u.deg**2,
+                beam_FWHM = 48*u.arcsec,
+                catalogue_file = current_file)
+    print("Setting epsilon to 0.015...")
+    print("compiling...")
+    cii_cube_0015 = m_cii.maps
+    print("compiled!")
+
+    # Setting up the Parameters of m_cii_0045 #
+    m_cii.update(model_par = {'zdex': 0.4,
+    'M0': 1900000000.0,
+    'Mmin': 20000000000,
+    'M_pivot':1e12,
+    'alpha_MH1': 0.74,
+    'alpha_LCII': 0.024,
+    'alpha0': -1.412,
+    'gamma0': 0.31,
+    'epsilon': 0.045,
+    'BehrooziFile': 'sfr_reinterp.dat'},
+                dnu = 2.8*u.GHz,
+                nuObs = 270*u.GHz,
+                Delta_nu = 40*u.GHz,
+                tobs = 40000*u.h,
+                Omega_field = 2.25*u.deg**2,
+                beam_FWHM = 48*u.arcsec,
+                catalogue_file = current_file)
+    print("Setting epsilon to 0.045...")
+    print("compiling...")
+    cii_cube_0045 = m_cii.maps
+    print("compiled!")
+
+    # Setting up the Parameters of m_cii_01 #
+    m_cii.update(model_par = {'zdex': 0.4,
+    'M0': 1900000000.0,
+    'Mmin': 20000000000,
+    'M_pivot':1e12,
+    'alpha_MH1': 0.74,
+    'alpha_LCII': 0.024,
+    'alpha0': -1.412,
+    'gamma0': 0.31,
+    'epsilon': 0.1,
+    'BehrooziFile': 'sfr_reinterp.dat'},
+                dnu = 2.8*u.GHz,
+                nuObs = 270*u.GHz,
+                Delta_nu = 40*u.GHz,
+                tobs = 40000*u.h,
+                Omega_field = 2.25*u.deg**2,
+                beam_FWHM = 48*u.arcsec,
+                catalogue_file = current_file)
+    print("Setting epsilon to 0.1...")
+    print("compiling...")
+    cii_cube_01 = m_cii.maps
+    print("compiled!")
+
+    # Create a dictionary of the 4 maps
+    eps_cubes = {0.005: cii_cube_0005,
+                 0.015: cii_cube_0015,
+                 0.045: cii_cube_0045,
+                 0.100: cii_cube_01,}
+    # Create an iterable array of the variables
+
+    # Figure Generation #
     # [CII] Noiseless Mock
-    fig, axes = plt.subplots(nrows = 1, ncols = 1, figsize = (10, 8))
-    plt.subplot(111)
-    plt.imshow(cii_cube[:, :, 6].value, vmax = 2000, cmap =  'viridis', extent = [-1, 1, -1, 1], rasterized = True)
-    plt.title('[C II] Noiseless Mock at z $\\approx$ 6')
-    plt.ylabel('$\\Delta$Dec (deg)')
-    plt.xlabel('$\\Delta$RA (deg)')
-    plt.colorbar(label = '$I_{\\rm [C\\, II]}$ (Jy sr$^{-1}$)', pad = 0.03)
-    # TODO: save the figure output to a sensible file
+    for eps, current_map in eps_cubes.items():
+        fig, axes = plt.subplots(nrows = 1, ncols = 1, figsize = (10, 8))
+        plt.subplot(111)
+        plt.imshow(current_map[:, :, 6].value, 
+                   vmax = 1600, cmap =  'viridis', 
+                   extent = [-1, 1, -1, 1], rasterized = True)
+        plt.title('[C II] Noiseless Mock at z $\\approx$ 8')
+        plt.ylabel('$\\Delta$Dec (deg)')
+        plt.xlabel('$\\Delta$RA (deg)')
+        plt.colorbar(label = '$I_{\\rm [C\\, II]}$ (Jy sr$^{-1}$)', pad = 0.03)
+        
+        # Save the figure
+        save_dir = folder_registry[eps]["map"]
+        filename = f"Figure_{count:03d}.png"
+        save_path = save_dir / filename
+        fig.savefig(save_path, dpi=300)
+        print("Saved " + filename + "into" + save_path)
+        plt.close(fig)
 
     # [CII] Beamed Noiseless Mock
-    fig, axes = plt.subplots(nrows = 1, ncols = 1, figsize = (10, 8))
-    plt.subplot(111)
-    plt.imshow(gaussian_filter(cii_cube[:, :, 6], 1), vmax = 2000, cmap =  'viridis', extent = [-1, 1, -1, 1], rasterized = True)
-    plt.title('[C II] Beamed Noiseless Mock')
-    plt.ylabel('$\\Delta$Dec (deg)')
-    plt.xlabel('$\\Delta$RA (deg)')
-    plt.colorbar(label = '$I_{\\rm [C\\, II]}$ (Jy sr$^{-1}$)', pad = 0.03)
-    # TODO: save the figure output to a sensible file
+    for eps, current_map in eps_cubes.items():
+        fig, axes = plt.subplots(nrows = 1, ncols = 1, figsize = (10, 8))
+        plt.subplot(111)
+        plt.imshow(gaussian_filter(current_map[:, :, 6], 1), 
+                   vmax = 1600, cmap =  'viridis', 
+                   extent = [-1, 1, -1, 1], rasterized = True)
+        plt.title('[C II] Beamed Noiseless Mock at z $\\approx$ 8')
+        plt.ylabel('$\\Delta$Dec (deg)')
+        plt.xlabel('$\\Delta$RA (deg)')
+        plt.colorbar(label = '$I_{\\rm [C\\, II]}$ (Jy sr$^{-1}$)', pad = 0.03)
+
+        # Save the figure
+        save_dir = folder_registry[eps]["beamed_map"]
+        filename = f"Figure_{count:03d}.png"
+        save_path = save_dir / filename
+        fig.savefig(save_path, dpi=300)
+        print("Saved " + filename + "into" + save_path)
+        plt.close(fig)
+
+    # Raw Data Storage
+    for eps, current_map in eps_cubes.items():
+        save_dir = folder_registry[eps]["raw_data"]
+        filename = f"Map_{count:03d}.h5"
+        save_path = save_dir / filename
+        with h5py.File(save_path, "w") as f:
+            f["intensity"] = current_map
+        print("Saved " + filename + "into" + save_path)
+
+    count += 1
