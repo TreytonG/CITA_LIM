@@ -268,7 +268,7 @@ for i in range(len(filepaths)):
         filename = f"Figure_{count:03d}.png"
         save_path = save_dir / filename
         fig.savefig(save_path, dpi=300)
-        print("Saved " + filename + "into" + save_path)
+        print(f"Saved {filename} into {save_path}")
         plt.close(fig)
 
     # [CII] Beamed Noiseless Mock
@@ -288,7 +288,7 @@ for i in range(len(filepaths)):
         filename = f"Figure_{count:03d}.png"
         save_path = save_dir / filename
         fig.savefig(save_path, dpi=300)
-        print("Saved " + filename + "into" + save_path)
+        print(f"Saved {filename} into {save_path}")
         plt.close(fig)
 
     # Raw Data Storage
@@ -298,6 +298,6 @@ for i in range(len(filepaths)):
         save_path = save_dir / filename
         with h5py.File(save_path, "w") as f:
             f["intensity"] = current_map
-        print("Saved " + filename + "into" + save_path)
+        print(f"Saved {filename} into {save_path}")
 
     count += 1
