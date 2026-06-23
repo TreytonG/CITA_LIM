@@ -1,4 +1,5 @@
 import astropy.units as u
+import numpy as np
 
 default_par = dict(cosmo_model = 'Planck15',   # Input cosmological model
               model_type = 'LF',    # Type of line model, either 'LF' or 'ML'
@@ -212,11 +213,11 @@ Lichen_v3 = dict(model_type = 'ML',
                          )
 
 Lichen_v4 = dict(model_type = 'ML',
-                         model_name = 'LichenCII_v3',
+                         model_name = 'LichenCII_v3', 
                          model_par = {'zdex': 0.05, 'M0':(1.9*(10**9)),'Mmin':(2*(10**10)), 'alpha_MH1':0.74, 'alpha_LCII':0.017, 'alpha0':-1.412, 'gamma0':0.31, 'BehrooziFile': 'sfr_reinterp.dat'},
                          nu = 1897*u.GHz,
                          nuObs = 400*u.GHz,
-                         Mmin = 1e10*u.Msun,
+                         Mmin = 1e9*u.Msun,
                          Mmax = 1e14*u.Msun,
                          Tsys_NEFD = 72.5*u.mJy*u.s**(1./2),
                          Nfeeds = 120,
@@ -230,7 +231,24 @@ Lichen_v4 = dict(model_type = 'ML',
                          catalogue_file = 'nate_sims/gaussian/may_runs/gauss_lightcone.npz'
                          )
 
-
+Moss_v1 = dict(model_type = 'ML',
+               model_name = 'MossCII',
+               model_par = {param: values[1] for param, values in zip(np.array(["eps_0", "eps_a", "eps_lna", "eps_z", "M_0", "M_a", "M_lna", "M_z", "alpha_0", "alpha_a", "alpha_lna", "alpha_z", "beta_0", "beta_a", "beta_z", "delta_0", "gamma_0", "gamma_a", "gamma_z"]), np.loadtxt("um_dr1_smhm/params/smhm_med_params.txt"))},
+               nu = 1897*u.GHz,
+               nuObs = 400*u.GHz,
+               Mmin = 1e8*u.Msun,
+               Mmax = 1e14*u.Msun,
+               Tsys_NEFD = 72.5*u.mJy*u.s**(1./2),
+               Nfeeds = 120,
+               beam_FWHM = 48*u.arcsec,
+               Delta_nu = 40*u.GHz, # was 20 before, why?
+               dnu = 1.11*u.GHz,
+               tobs = 2000*u.hr,
+               Omega_field = 16*u.deg**2,
+               do_Jysr = True,
+               Nfield = 4,
+               catalogue_file = '/mnt/AccessArk/lightcone_factory/survey_z5.50-9.00_x90.00_y90.00_8._redux.h5'
+               )
 
 
 Silva_m3_z6_CCATp = dict(model_type = 'ML',

@@ -66,7 +66,28 @@ def load_peakpatch_catalogue(halo_info, filetype='.npz', saveHalos=False, saveFo
         #[TREY]: Edited functionality of load_peakpatch_catalogue to support .h5py filetype instead of .h5
         from astropy.cosmology import Planck13 as cosmo
         return load_lightcone_catalogue(halo_info, cosmo)
-
+    else:
+        print('Loading .npz catalogues...')
+        params_dict = halo_info['cosmo_header'][()]     
+        if debug.verbose: print("\thalo catalogue contains:\n\t\t", halo_info.files)    #.npz version
+            
+        cen_x_fov  = params_dict.get('cen_x_fov', 0.) #if the halo catalogue is not centered along the z axis
+        cen_y_fov  = params_dict.get('cen_y_fov', 0.) #if the halo catalogue is not centered along the z axis
+        
+        halos.M          = halo_info['M']     # halo mass in Msun 
+        halos.x_pos      = halo_info['x']     # halo x position in comoving Mpc 
+        halos.y_pos      = halo_info['y']     # halo y position in comoving Mpc 
+        halos.z_pos      = halo_info['z']     # halo z position in comoving Mpc 
+        
+        halos.vx         = halo_info['vx']    # halo x velocity in km/s
+        halos.vy         = halo_info['vy']    # halo y velocity in km/s
+        halos.vz         = halo_info['vz']    # halo z velocity in km/s
+        halos.redshift   = halo_info['zhalo'] # observed redshift incl velocities
+        halos.zformation = halo_info['zform'] # formation redshift of halo
+        halos.chi        = np.sqrt(halos.x_pos**2+halos.y_pos**2+halos.z_pos**2)  
+        halos.nhalo      = len(halos.M)
+        halos.ra         = np.arctan2(-halos.x_pos,halos.z_pos)*180./np.pi - cen_x_fov
+        halos.dec        = np.arcsin(  halos.y_pos/halos.chi  )*180./np.pi - cen_y_fov
 
 def load_peakpatch_catalogue_cosmo(halo_info):
     """
@@ -85,13 +106,21 @@ def load_peakpatch_catalogue_cosmo(halo_info):
     if debug.verbose: print("\thalo catalogue contains:\n\t\t", halo_info.files)
     
     #get cosmology from halo catalogue
-    params_dict    = halo_info['cosmo_header'][()]
-    cosmo.Omega_M  = params_dict.get('Omega_M')
-    cosmo.Omega_B  = params_dict.get('Omega_B')
-    cosmo.Omega_L  = params_dict.get('Omega_L')
-    cosmo.h        = params_dict.get('h'      )
-    cosmo.ns       = params_dict.get('ns'     )
-    cosmo.sigma8   = params_dict.get('sigma8' )
+    try:
+        params_dict    = halo_info['cosmo_header'][()]
+        cosmo.Omega_M  = params_dict.get('Omega_M')
+        cosmo.Omega_B  = params_dict.get('Omega_B')
+        cosmo.Omega_L  = params_dict.get('Omega_L')
+        cosmo.h        = params_dict.get('h'      )
+        cosmo.ns       = params_dict.get('ns'     )
+        cosmo.sigma8   = params_dict.get('sigma8' )
+    except KeyError:
+        cosmo.Omega_M  = 0.307
+        cosmo.Omega_B  = 0.0486
+        cosmo.Omega_L  = 0.693
+        cosmo.h        = 0.68
+        cosmo.ns       = 0.96
+        cosmo.sigma8   = 0.82
 
     assert (cosmo.Omega_M + cosmo.Omega_L)==1., "Does not seem to be flat universe cosmology" 
 

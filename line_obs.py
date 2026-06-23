@@ -13,7 +13,8 @@ from scipy.special import factorial as fact
 
 from functools import partial
 import multiprocessing
-import multiprocess as multiprocessing
+# import multiprocess as multiprocessing
+# NOTE commented out bc multiprocess could not be imported but multiprocessing already is so seems like we don't need it (confirm)
 
 from line_model import LineModel
 #from lim import lim
@@ -918,13 +919,13 @@ class LineObs(LineModel):
             P_N[0,:] = self.P1
             
             for ii in range(1,self.Ngal_max):
-                PN[ii,:] = vt.conv_parallel(self.T,P_N[ii-1],
+                P_N[ii,:] = vt.conv_parallel(self.T,P_N[ii-1], #changed first PN here to P_N
                                             self.T,self.P1,self.T)
             
             PT = np.zeros(self.T.size)
 
             for ii in range(0,self.Ngal_max):
-                PT = PT+PN[ii,:]*self.PofN[ii+1]
+                PT = PT+P_N[ii,:]*self.PofN[ii+1] # + this one
                 
             return PT
             
