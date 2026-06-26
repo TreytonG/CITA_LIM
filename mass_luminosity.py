@@ -455,10 +455,55 @@ def LichenCII_v3(Mvec, MLpar, z):
 
 def MossCII(Mvec, MLpar, z):
     """
-    Updated model for 2019 SMHM and SFR prescriptions, since sfr_reinterp.dat only applies to redshifts up to z=8
-    this extends that to z=12 for both SMHM and SFR
-    Valid (or at least, matching with Behroozi 2019b) from z=6 to z=13, with halo masses starting from 10^8 to 10^15 Msun or so
+    Updated version of LichenCII_v3 extending for use at z=12 & Mmin=1e8
+    Valid (or at least, consistent with Behroozi 2019b, 2020) from z=6 to z=13, with halo masses starting from 10^8 to 10^15 Msun or so
+
+    Inputs:
+    Mvec: array; halo masses in units of Msun
+    MLpar: dict; model parameters loaded in from params.py
+    z: float; redshift
+    Outputs:
+    L_CII: astropy unit float (idk the name); modeled CII line luminosity in units of Lsun
+
+    Prescriptions & links:
+    SMHM from Behroozi et al 2019b, 2020: https://arxiv.org/pdf/1806.07893, https://arxiv.org/pdf/2007.04988
+    metallicity Z from Curti et al 2023: https://arxiv.org/pdf/2304.08516
+    HI mass relation from Villaescusa-Navarro et al 2018: https://arxiv.org/pdf/1804.09180
+    L_CII relation from Heintz et al 2021: https://arxiv.org/pdf/2108.13442
+    [ SFR relation from Behroozi et al 2019b, 2020 ] (not necessary for model unless additional SFR calculations are needed)
     """
+    # # Star formation rate, taken from 20191104_unimachsfr_compare.py & sfr_release.dat
+    # # NOTE current metallicity model does not require this
+    # # however, SFR prescription was changed in 2020 paper & may still be useful in the long run
+    # # so this is mostly here as documentation
+    # def sfr_from_vMpeak(vMpeak,z):
+    #     a = 1/(1+z);
+    #     logV = 2.151 - 1.658*(1-a) + 1.680*np.log(1+z) - 0.233*z
+    #     loge = 0.109 - 3.441*(1-a) + 5.079*np.log(1+z) - 0.781*z
+    #     alpha = -5.598 - 20.731*(1-a) + 13.455*np.log(1+z) - 1.321*z
+    #     beta = -1.911 + 0.395*(1-a) + 0.747*z
+    #     logg = -1.699 + 4.206*(1-a) - 0.809*z
+    #     delta_sfr = 0.055
+    #     logv = np.log10(vMpeak) - logV
+    #     v = 10**logv
+    #     return 10**loge*(1/(v**alpha+v**beta)+10**logg*np.exp(-logv**2/(2*delta_sfr**2)))
+    # def fquench(vMpeak,z):
+    #     a = 1/(1+z);
+    #     Qmin = np.maximum(0,-1.944+(-2.419)*(1-a));
+    #     logVQ = 2.248 - 0.018*(1-a) + 0.124*z;
+    #     sigVQ = 0.227 + 0.037*(1-a) - 0.107*np.log(1+z);
+    #     return Qmin + (1-Qmin)*(0.5+0.5*erf((np.log10(vMpeak)-logVQ)/(2**0.5*sigVQ)))
+    # def vMpeak_from_Mh(Mh,z):
+    #     a = 1/(1+z);
+    #     M200kms = 1.64e12/((a/0.378)**(-0.142)+(a/0.378)**(-1.79)) # MSol
+    #     return 200*(Mh/M200kms)**0.3 # km/s
+    # def sfr_from_Mh(Mh,z,quench=True):
+    #     sfr_sf = sfr_from_vMpeak(vMpeak_from_Mh(Mh,z),z)
+    #     Csigma = 0.8; # NOTE not actually known, but should be small if scatter is small
+    #     return sfr_sf/Csigma*(1-quench*fquench(vMpeak_from_Mh(Mh,z),z))
+    # SFR = sfr_from_Mh(Mvec / u.Msun, z, quench=False)
+
+
     # Stellar mass-halo mass relation, taken from Behroozi 2019b
     def transform_pars(raw_pars):
         """
@@ -487,121 +532,48 @@ def MossCII(Mvec, MLpar, z):
             "log10_gamma": log10_gamma(z)
         }
         return weights
-
     def smhm_2019(weights):
         """
         stellar mass to halo mass relation from Behroozi 2019:
         https://arxiv.org/pdf/1806.07893
 
         Inputs: weights with relevant keys (dict)
-        Outputs: a lambda function which takes halo mass as input and outputs stellar mass
+        Outputs: a lambda function which takes halo mass as input and outputs logged stellar mass
         """
 
         x = lambda log10_M_peak, z: log10_M_peak - weights(z)["log10_M1"]
         log10_M_star = lambda log10_M_peak, z: weights(z)["eps"] - np.log10(10**(-1*weights(z)["alpha"]*x(log10_M_peak, z))+10**(-1*weights(z)["beta"]*x(log10_M_peak, z))) + (10**weights(z)["log10_gamma"])*np.exp(-0.5*(x(log10_M_peak, z)/weights(z)["delta"])**2) + weights(z)["log10_M1"]
 
         return log10_M_star
-    stellar_mass = smhm_2019(transform_pars(MLpar))(np.log10(Mvec / u.Msun), z)
+    stellar_mass = 10**smhm_2019(transform_pars(MLpar))(np.log10(Mvec / u.Msun), z)
 
 
-    # # Star formation rate, taken from 20191104_unimachsfr_compare.py & sfr_release.dat
-    # # NOTE current metallicity model does not require this
-    # def sfr_from_vMpeak(vMpeak,z):
-    #     a = 1/(1+z);
-    #     logV = 2.151 - 1.658*(1-a) + 1.680*np.log(1+z) - 0.233*z
-    #     loge = 0.109 - 3.441*(1-a) + 5.079*np.log(1+z) - 0.781*z
-    #     alpha = -5.598 - 20.731*(1-a) + 13.455*np.log(1+z) - 1.321*z
-    #     beta = -1.911 + 0.395*(1-a) + 0.747*z
-    #     logg = -1.699 + 4.206*(1-a) - 0.809*z
-    #     delta_sfr = 0.055
-    #     logv = np.log10(vMpeak) - logV
-    #     v = 10**logv
-    #     return 10**loge*(1/(v**alpha+v**beta)+10**logg*np.exp(-logv**2/(2*delta_sfr**2)))
-
-    # def fquench(vMpeak,z):
-    #     a = 1/(1+z);
-    #     Qmin = np.maximum(0,-1.944+(-2.419)*(1-a));
-    #     logVQ = 2.248 - 0.018*(1-a) + 0.124*z;
-    #     sigVQ = 0.227 + 0.037*(1-a) - 0.107*np.log(1+z);
-    #     return Qmin + (1-Qmin)*(0.5+0.5*erf((np.log10(vMpeak)-logVQ)/(2**0.5*sigVQ)))
-
-    # def vMpeak_from_Mh(Mh,z):
-    #     a = 1/(1+z);
-    #     M200kms = 1.64e12/((a/0.378)**(-0.142)+(a/0.378)**(-1.79)) # MSol
-    #     return 200*(Mh/M200kms)**0.3 # km/s
-
-    # def sfr_from_Mh(Mh,z,quench=True):
-    #     sfr_sf = sfr_from_vMpeak(vMpeak_from_Mh(Mh,z),z)
-    #     Csigma = 0.8; # NOTE not actually known, but should be small if scatter is small
-    #     return sfr_sf/Csigma*(1-quench*fquench(vMpeak_from_Mh(Mh,z),z))
-    
-    # SFR = sfr_from_Mh(Mvec / u.Msun, z, quench=False)
-
-    # # Then, retrieve metallicity with FMR from Heintz+2021 (from Curti+2020)
-
-    # gamma = MLpar["gamma0"]
-    # beta = 2.1
-    # m_0 = 10.11
-    # m_1 = 0.56
-    # Z_0 = 8.779
-    
-    # def M_0(sfr):
-    #     return (10**(m_0))*(sfr**(m_1))
-
-    # halo_M0 = M_0(SFR)
-
-    # def ps_metal(stellar_m, M_0):
-    #     log_arg = 1 + (stellar_m/M_0)**(-beta)
-    #     print(f"log argument: {log_arg}")
-    #     print(f"logged: {np.log10(log_arg)}")
-    #     return Z_0 - (gamma/beta)*np.log10(1 + (stellar_m/M_0)**(-beta))
-
-    # # The ps_metal is the FMR but for the 'pseudo'-metallicity quantity described in Heintz+21; it's not the direct metallicity. It's defined as 12 + log(O/H).
-    # # In solar metallicity, log(Z/Z_sol) = 0 when 12 + log(O/H) = 8.779, so 'real'Z = 10**('pseudo'Z - 8.779):
-
-    # def metal(ps_m):
-    #     return 10**(ps_m - Z_0) # ... why do we add Z_0 then subtract it...
-
-    # halo_psZ = ps_metal(stellar_mass, halo_M0)
-    # halo_Z = metal(halo_psZ)
-
-    # # Metallicity prescription below from pg 14 of https://arxiv.org/pdf/2606.11345
-    # Z_8 = 7.62
-    # beta_2 = 0.34
-    # zdex = 0.3
-    
-    # def metal(stellar_m):
-    #     return 10**(beta_2 * (np.log10(stellar_m) - 8))
-
-
-    # derived from Curti et al. 2023: https://arxiv.org/pdf/2304.08516
+    # Metallicity calculation
     beta_z = 0.11
     Zm8 = 7.65
     Z_0 = 8.779
-    
-    def metal_curti(stellar_m): # set this to 8.779
-        return 10**(beta_z * np.log10(stellar_m) + Zm8 - Z_0)
+    def metal_curti(stellar_m):
+        return 10**(beta_z * np.log10(stellar_m) - beta_z * 8 + Zm8 - Z_0)
     halo_Z = metal_curti(stellar_mass)
-    print(f"halo_Z: {halo_Z}")
+    zdex = MLpar["zdex"]
+    Z_scatter = add_log_normal_scatter(halo_Z, zdex, seed = 23)
+    
 
+    # Mass of [HI] from M*
     M0 = MLpar["M0"]
     MH1_min = MLpar["MH1_min"]
     alpha_MH1 = MLpar["alpha_MH1"]
-    alpha_LCII = MLpar["alpha_LCII"]
-    zdex = MLpar["zdex"]
-    
-    Z_scatter = add_log_normal_scatter(halo_Z, zdex, seed = 23)
-    print(f"Z scatter: {Z_scatter}, mean: {np.average(Z_scatter)}")
-
-    # Mass of [HI] prescription from pg 8 of https://arxiv.org/pdf/1804.09180
     def MH1_fit(M, M_0, M_min, alphaMH1): 
         x = M/M_min
         return M_0 * ((x)**alphaMH1) * np.exp(-1/((x)**0.35))
-
     MH1 = MH1_fit(Mvec / u.Msun, M0, MH1_min, alpha_MH1)
 
-    # L_CII = (alpha_LCII * (MH1.value) * Z_scatter) * u.Lsun
-    L_CII = (0.033 * MH1.value * (Z_scatter)**0.87) * u.Lsun
+
+    # L_CII to MH1 relation in https://arxiv.org/pdf/2108.13442
+    alpha_LCII = MLpar["alpha_LCII"] # should be 0.033
+    L_CII = (alpha_LCII * MH1.value * (Z_scatter)**0.87) * u.Lsun
+
+
     return L_CII
 
 
