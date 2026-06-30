@@ -46,7 +46,7 @@ class LimLam(LineObs):
     
     #filename = 'limlam_mocker/catalogues/default_catalogue.npz'        # George's default catalogue
     #filename = 'limlam_mocker/catalogues/COMAP_z4.77-6.21_700Mpc/COMAP_z4.77-6.21_700Mpc_seed_13579.npz'    # One of George's COMAP catalogues
-    filename = '/mnt/raid-cita/echung/surp2020/lim_Clara/limlam_mocker/catalogues/galaxy_catalogue.h5'                      # Catalogue from Martine
+    filename = '/home/treyton/CITA_LIM/CubeGen Output; 06-22-2026, 11:48:18 PM/eps=0.1/0.1_raw_data/RawData_003_eps0.1.h5'                    # Catalogue from Martine
     
     def __init__(self,
               catalogue_file=filename,

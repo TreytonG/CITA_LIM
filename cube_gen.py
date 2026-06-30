@@ -21,6 +21,7 @@ warnings.filterwarnings("ignore", module="hmf.*")
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+import pandas as pd
 
 # Math packages
 import math
@@ -38,6 +39,9 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 from pathlib import Path
 import h5py
+import glob
+import limlam
+from scipy.stats import skew, kurtosis
 
 # Defualt plotting settings
 matplotlib.rcParams.update({'font.size': 18, 'figure.figsize': [8, 7]})
@@ -46,8 +50,7 @@ matplotlib.rcParams.update({'font.size': 18, 'figure.figsize': [8, 7]})
 # Assembling the Lightcone Filepaths #
 # Reads off user inputted lightcone paths in a text file, and assembles the full filepaths to be used
 # The text file should have one filename per line, and will be appended to the base path "/mnt/AccessArk/lightcone_factory/"
-import os
-def get_filepaths(textfile="/home/treyton/CITA_LIM/cube_gen_lightcone_catalog", base_path="/mnt/AccessArk/lightcone_factory/", verbose=True):
+def get_filepaths(textfile="/home/treyton/CITA_LIM/cube_gen_test_lightcone_catalog", base_path="/mnt/AccessArk/lightcone_factory/", verbose=True):
     filepaths = []
     invalid_paths = []
     with open(textfile, 'r') as f:
@@ -70,27 +73,6 @@ def get_filepaths(textfile="/home/treyton/CITA_LIM/cube_gen_lightcone_catalog", 
     return filepaths
 filepaths = get_filepaths()
 
-
-# Importing Neccesary Libraries #
-# Base imports
-import numpy as np
-import matplotlib
-import matplotlib.pyplot as plt
-
-# Math packages
-import math
-from scipy import special
-from scipy import interpolate
-import astropy.units as u
-from scipy.ndimage import gaussian_filter
-
-# base intensity mapping package
-from lim import lim
-from limlam_mocker.limlam_mocker import empty_table
-
-# other miscellaneous packages
-from datetime import datetime
-
 # Defualt plotting settings
 matplotlib.rcParams.update({'font.size': 18, 'figure.figsize': [8, 7]})
 
@@ -108,24 +90,25 @@ m_cii = lim('Lichen_v4_bursty', doSim = True)
 
 
 # Creating the data storage
-eps_values = [0.005, 0.015, 0.045, 0.100]
+eps_values = [0.005, 0.015, 0.045, 0.1]
 root = Path("CubeGen Output; " + date + ", " + time)
 folder_registry = {}
 for eps in eps_values:
-    eps_str = f"{eps:.3f}".rstrip("0").rstrip(".")
-    base = root / f"eps={eps_str}"
+    base = root / f"eps={eps}"
     folder_registry[eps] = {"base": base,
-                            "map": base / f"{eps_str}_map", 
-                            "beamed_map": base / f"{eps_str}_beamed_map",  
-                            "raw_data": base / f"{eps_str}_raw_data" 
-                            # "power_spectra": base / f"{eps_str}_power_spectra",   
-                            # # "pdf": base / f"{eps_str}_pdf",
+                            "map": base / f"{eps}_map", 
+                            "beamed_map": base / f"{eps}_beamed_map",  
+                            "raw_data": base / f"{eps}_raw_data",
+                            "power_spectra": base / f"{eps}_power_spectra",
+                            "histogram": base / f"{eps}_histogram"   
+                            # "pdf": base / f"{eps}_pdf",
                             }
-# other_base = root / "Other Figures"
-# folder_registry["other"] = {"base": other_base, 
+other_base = root / "Other Figures"
+folder_registry["other"] = {"base": other_base, 
                             # "four_panel_maps": other_base / "4_panel_maps", 
                             # "four_panel_beamed_maps": other_base / "4_panel_beamed_maps",   
-                            # "summary_statistics": other_base / "summary_statistics"}
+                            "summary_statistics": other_base / "summary_statistics"
+                            }
 for eps_dict in folder_registry.values():
     for path in eps_dict.values():
         path.mkdir(parents=True, exist_ok=True)
@@ -290,4 +273,87 @@ for i in range(len(filepaths)):
             f["intensity"] = current_map
         print(f"Saved {filename} into {save_path}")
     print(f"Finished with lightcone {count:03d}")
+
+    # Intensity Histogram
+    for eps, current_map in eps_cubes.items():
+        fig, axes = plt.subplots(nrows = 1, ncols = 1, figsize = (10, 8))
+        vals = current_map.flatten().value
+        vals = vals[vals > 0]
+        plt.hist(vals, bins=np.logspace(np.log10(vals.min()),   
+                                        np.log10(vals.max()), 50))
+
+        plt.xscale('log')
+        plt.yscale('log')
+        plt.xlabel('Intensity (Jy/sr)')
+        plt.ylabel('Count')
+
+        # Save the figure
+        save_dir = folder_registry[eps]["histogram"]
+        filename = f"Histogram{count:03d}_eps{eps}.png"
+        save_path = save_dir / filename
+        fig.savefig(save_path, dpi=300)
+        print(f"Saved {filename} into {save_path}")
+        plt.close(fig)
+
+    # Summary Statistics
+    rows = []
+    zidx = 6
+    for eps, cube in eps_cubes.items():
+        data = cube[:, :, zidx]
+        rows.append({'epsilon': eps, 'mean': np.mean(data), 'std': np.std(data),   
+                    'variance': np.var(data), 'skewness': skew(data.flatten()),    
+                    'kurtosis': kurtosis(data.flatten()),  
+                    'p99': np.percentile(data,99), 
+                    'p999': np.percentile(data,99.9),  
+                    'max': np.max(data)})
+    stats_df = pd.DataFrame(rows)
+
+    # Save the figure
+    save_dir = folder_registry["other"]["summary_statistics"]
+    filename = f"summary_statistics_{count:03d}.csv"
+    save_path = save_dir / filename
+    stats_df.to_csv(save_path, index=False)
+    print(f"Saved {filename} into {save_path}")
+
+    # Power Spectra
+    for eps, current_map in eps_cubes.items():
+        m = lim("Lichen_v4_bursty", doSim=True)
+        m.update(model_par = {'zdex': 0.4, 'M0': 1900000000.0,
+                              'Mmin': 20000000000, 'M_pivot':1e12,
+                              'alpha_MH1': 0.74, 'alpha_LCII': 0.024,
+                              'alpha0': -1.412, 'gamma0': 0.31,
+                              'epsilon': eps,'BehrooziFile': 'sfr_reinterp.dat'},
+                                dnu = 2.8*u.GHz,
+                                nuObs = 270*u.GHz,
+                                Delta_nu = 40*u.GHz,
+                                tobs = 40000*u.h,
+                                Omega_field = 2.25*u.deg**2,
+                                beam_FWHM = 48*u.arcsec)
+        m.limlam_cosmo.Omega_L = 0.691
+        m.limlam_cosmo.Omega_M = 0.307
+        m.limlam_cosmo.Omega_B = 0.048
+        m.limlam_cosmo.h = 0.677
+        m.limlam_cosmo.ns = 0.96
+
+        m.mapinst.maps = current_map
+        pk_dict = limlam.llm.map_to_pspec(m.mapinst, m.limlam_cosmo)
+        k = pk_dict['k']
+        Pk = pk_dict['Pk']
+
+        plt.figure(figsize=(6,5))
+        plt.plot(k, Pk, lw=2)
+        plt.xlabel(r'$k$')
+        plt.ylabel(r'$P(k)$')
+        plt.title('Power Spectrum')
+        plt.grid(alpha=0.3)
+        plt.loglog()
+
+        # Save the figure
+        save_dir = folder_registry[eps]["power_spectra"]
+        filename = f"Power_Spectra_{count:03d}_eps{eps}.png"
+        save_path = save_dir / filename
+        fig.savefig(save_path, dpi=300)
+        print(f"Saved {filename} into {save_path}")
+        plt.close(fig)
+
     count += 1
