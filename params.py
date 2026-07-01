@@ -233,7 +233,31 @@ Lichen_v4 = dict(model_type = 'ML',
 
 Moss_v1 = dict(model_type = 'ML',
                model_name = 'MossCII',
-               model_par = {param: values[1] for param, values in zip(np.array(["eps_0", "eps_a", "eps_lna", "eps_z", "M_0", "M_a", "M_lna", "M_z", "alpha_0", "alpha_a", "alpha_lna", "alpha_z", "beta_0", "beta_a", "beta_z", "delta_0", "gamma_0", "gamma_a", "gamma_z"]), np.loadtxt("um_dr1_smhm/params/smhm_med_params.txt"))},
+               model_par = {param: values[1] for param, values in 
+                            zip(np.array(["eps_0", "eps_a", "eps_lna", "eps_z", "M_0", "M_a", "M_lna", "M_z", "alpha_0", "alpha_a", "alpha_lna", "alpha_z", "beta_0", "beta_a", "beta_z", "delta_0", "gamma_0", "gamma_a", "gamma_z"]), 
+                                np.loadtxt("um_dr1_smhm/params/smhm_med_params.txt"))},
+               nu = 1897*u.GHz,
+               nuObs = 400*u.GHz,
+               Mmin = 1e8*u.Msun,
+               Mmax = 1e14*u.Msun,
+               Tsys_NEFD = 72.5*u.mJy*u.s**(1./2),
+               Nfeeds = 120,
+               beam_FWHM = 48*u.arcsec,
+               Delta_nu = 40*u.GHz, # was 20 before, why?
+               dnu = 1.11*u.GHz,
+               tobs = 2000*u.hr,
+               Omega_field = 16*u.deg**2,
+               do_Jysr = True,
+               Nfield = 4,
+               catalogue_file = '/mnt/AccessArk/lightcone_factory/survey_z5.50-9.00_x90.00_y90.00_8._redux.h5'
+               )
+
+Moss_v1_bursty = dict(model_type = 'ML',
+               model_name = 'MossCII_bursty',
+               model_par = {param: values[1] for param, values in 
+                            zip(np.array(["eps_0", "eps_a", "eps_lna", "eps_z", "M_0", "M_a", "M_lna", "M_z", "alpha_0", "alpha_a", "alpha_lna", "alpha_z", "beta_0", "beta_a", "beta_z", "delta_0", "gamma_0", "gamma_a", "gamma_z"]), 
+                                np.loadtxt("um_dr1_smhm/params/smhm_med_params.txt"))} | 
+                                {'epsilon': 0.005, "epsilon0": 0.015, "sigma_low": 0.19963, "A": 1.1, "M_pivot": 8.5803e9, "alpha_burst":0.7505, "p": 2.0}, # burstiness parameters
                nu = 1897*u.GHz,
                nuObs = 400*u.GHz,
                Mmin = 1e8*u.Msun,

@@ -556,7 +556,7 @@ def MossCII(Mvec, MLpar, z):
         return 10**(beta_z * np.log10(stellar_m) - beta_z * 8 + Zm8 - Z_0)
     halo_Z = metal_curti(stellar_mass)
     zdex = MLpar["zdex"]
-    Z_scatter = add_log_normal_scatter(halo_Z, zdex, seed = 23)
+    Z_scatter = add_log_normal_scatter(halo_Z, zdex, seed = 3)
     
 
     # Mass of [HI] from M*
@@ -573,9 +573,112 @@ def MossCII(Mvec, MLpar, z):
     alpha_LCII = MLpar["alpha_LCII"] # should be 0.033
     L_CII = (alpha_LCII * MH1.value * (Z_scatter)**0.87) * u.Lsun
 
-
     return L_CII
 
+def MossCII_bursty(Mvec, MLpar, z):
+    """
+    Updated version of LichenCII_v3 extending for use at z=12 & Mmin=1e8
+    Valid (or at least, consistent with Behroozi 2019b, 2020) from z=6 to z=13, with halo masses starting from 10^8 to 10^15 Msun or so
+
+    Inputs:
+    Mvec: array; halo masses in units of Msun
+    MLpar: dict; model parameters loaded in from params.py
+    z: float; redshift
+    Outputs:
+    L_CII: astropy unit float (idk the name); modeled CII line luminosity in units of Lsun
+
+    Prescriptions & links:
+    SMHM from Behroozi et al 2019b, 2020: https://arxiv.org/pdf/1806.07893, https://arxiv.org/pdf/2007.04988
+    metallicity Z from Curti et al 2023: https://arxiv.org/pdf/2304.08516
+    HI mass relation from Villaescusa-Navarro et al 2018: https://arxiv.org/pdf/1804.09180
+    L_CII relation from Heintz et al 2021: https://arxiv.org/pdf/2108.13442
+    [ SFR relation from Behroozi et al 2019b, 2020 ] (not necessary for model unless additional SFR calculations are needed)
+    """
+    # Stellar mass-halo mass relation, taken from Behroozi 2019b
+    def transform_pars(raw_pars):
+        """
+        inputs: parameters loaded from UM DR-1 (dict)
+
+        outputs: a lambda function taking redshift as input
+        which outputs a dictionary of relevant weights for the 
+        SMHM relation
+        """
+
+        a = lambda z: 1 / (1+z)
+        log10_M1 = lambda z: raw_pars["M_0"] + raw_pars["M_a"]*(a(z)-1) - raw_pars["M_lna"]*np.log(a(z)) + raw_pars["M_z"]*z
+        eps = lambda z: raw_pars["eps_0"] + raw_pars["eps_a"]*(a(z)-1) - raw_pars["eps_lna"]*np.log(a(z)) + raw_pars["eps_z"]*z
+        alpha = lambda z: raw_pars["alpha_0"] + raw_pars["alpha_a"]*(a(z)-1) - raw_pars["alpha_lna"]*np.log(a(z)) + raw_pars["alpha_z"]*z
+        beta = lambda z: raw_pars["beta_0"] + raw_pars["beta_a"]*(a(z)-1) + raw_pars["beta_z"]*z
+        delta = lambda z: raw_pars["delta_0"]
+        log10_gamma = lambda z: raw_pars["gamma_0"] + raw_pars["gamma_a"]*(a(z)-1) + raw_pars["gamma_z"]*z
+
+        # place all of these in a dictionary for use in relation
+        weights = lambda z: {
+            "log10_M1": log10_M1(z),
+            "eps": eps(z),
+            "alpha": alpha(z),
+            "beta": beta(z),
+            "delta": delta(z),
+            "log10_gamma": log10_gamma(z)
+        }
+        return weights
+    
+    def smhm_2019(weights):
+        """
+        stellar mass to halo mass relation from Behroozi 2019:
+        https://arxiv.org/pdf/1806.07893
+
+        Inputs: weights with relevant keys (dict)
+        Outputs: a lambda function which takes halo mass as input and outputs logged stellar mass
+        """
+
+        x = lambda log10_M_peak, z: log10_M_peak - weights(z)["log10_M1"]
+        log10_M_star = lambda log10_M_peak, z: weights(z)["eps"] - np.log10(10**(-1*weights(z)["alpha"]*x(log10_M_peak, z))+10**(-1*weights(z)["beta"]*x(log10_M_peak, z))) + (10**weights(z)["log10_gamma"])*np.exp(-0.5*(x(log10_M_peak, z)/weights(z)["delta"])**2) + weights(z)["log10_M1"]
+
+        return log10_M_star
+    stellar_mass = 10**smhm_2019(transform_pars(MLpar))(np.log10(Mvec / u.Msun), z)
+
+
+    # Metallicity calculation
+    beta_z = 0.11
+    Zm8 = 7.65
+    Z_0 = 8.779
+    def metal_curti(stellar_m):
+        return 10**(beta_z * np.log10(stellar_m) - beta_z * 8 + Zm8 - Z_0)
+    halo_Z = metal_curti(stellar_mass)
+    zdex = MLpar["zdex"]
+    Z_scatter = add_log_normal_scatter(halo_Z, zdex, seed = 23)
+    
+
+    # Mass of [HI] from M*
+    M0 = MLpar["M0"]
+    MH1_min = MLpar["MH1_min"]
+    alpha_MH1 = MLpar["alpha_MH1"]
+    def MH1_fit(M, M_0, M_min, alphaMH1): 
+        x = M/M_min
+        return M_0 * ((x)**alphaMH1) * np.exp(-1/((x)**0.35))
+    MH1 = MH1_fit(Mvec / u.Msun, M0, MH1_min, alpha_MH1)
+
+
+    # Bursty star formation scattering
+    def sigma_logL_with_epsilon(M_h, epsilon, epsilon0=0.015, 
+        z=6.0, sigma_low=0.19963, A=1.1, M_pivot=8.5803e9, 
+        alpha=0.7505, p=2.0):
+        mass_term = np.exp(-(M_h / M_pivot)**alpha)
+        eps_term = (epsilon / epsilon0)**p / (1 + (epsilon / epsilon0)**p)
+        return sigma_low + A * eps_term * mass_term
+
+    epsilon = MLpar["epsilon"]
+    sigma_dex = sigma_logL_with_epsilon(Mvec.to(u.Msun).value, epsilon=epsilon)
+    sigma_ln = sigma_dex * np.log(10.)  # convert dex -> natural log scatter
+    bursty_scatter = np.exp(np.random.normal(loc=-0.5 * sigma_ln**2,
+                    scale=sigma_ln,size=Mvec.shape))    # log-normal scatter (mass-dependent per halo)
+
+    # L_CII to MH1 relation in https://arxiv.org/pdf/2108.13442
+    alpha_LCII = MLpar["alpha_LCII"] # should be 0.033
+    L_CII = (alpha_LCII * MH1.value * (Z_scatter)**0.87 * bursty_scatter) * u.Lsun
+
+    return L_CII
 
 def SilvaCO(Mvec, MLpar, z):
     '''
